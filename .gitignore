@@ -15,6 +15,11 @@
 
 # Typechain output
 /types
+/typechain-types
 
 # Hardhat coverage reports
 /coverage
+
+# env variables
+.env
+*.env
