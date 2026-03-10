@@ -1,47 +1,28 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import "../interfaces/IERC721.sol";
+import "../errors/SharedErrors.sol";
+
 /**
  * @title Core ERC-721 NFT Collection
  * @dev This contract handles the minting and ownership tracking of NFTs
  */
-contract NFTCollection {
+contract Collection is IERC721 {
     // Counter to keep track of the most recently minted token ID
     uint256 private _nextTokenId;
 
     // Mapping from token ID to the owner's address
-    mapping(uint256 _id => address _owner) private _owners;
+    mapping(uint256 tokenId => address owner) private _owners;
 
     // Mapping from token ID to its specific metadata URI (link to a JSON file)
-    mapping(uint256 _id => string _tokenURI) private _tokenURIs;
+    mapping(uint256 tokenId => string tokenURI) private _tokenURIs;
 
     // Mapping from token ID to the approved address (only one for ERC-721).
-    mapping(uint256 _id => address _approved) private _tokenApprovals;
-
-    /**
-     * @dev Emitted when `tokenId` token is transferred from `from` address to `to` address.
-     * In the case of minting, `from` is the zero address.
-     */
-    event Transfer(
-        address indexed from,
-        address indexed to,
-        uint256 indexed tokenId
-    );
-
-    /**
-     * @dev Emitted when `owner` enables `approved` to manage the `tokenId` token.
-     */
-    event Approval(
-        address indexed owner,
-        address indexed approved,
-        uint256 indexed tokenId
-    );
+    mapping(uint256 tokenId => address approved) private _tokenApprovals;
 
     /// @notice Custom error thrown when querying a non-existent token
     error InvalidTokenId(uint256 tokenId);
-
-    /// @notice Custom error thrown when a caller tries to approve a token they do not own
-    error NotTokenOwner(address caller, uint256 tokenId);
 
     /**
      * @dev Modifier to check if a token ID exists.
@@ -54,15 +35,18 @@ contract NFTCollection {
         _;
     }
 
-    /**
-     * @notice Returns the owner of the `tokenId` token.
-     * @param tokenId The ID of the token to query
-     * @return The address of the token owner
-     */
+    /// @inheritdoc IERC721
     function ownerOf(
         uint256 tokenId
     ) external view validTokenId(tokenId) returns (address) {
         return _owners[tokenId];
+    }
+
+    /// @inheritdoc IERC721
+    function getApproved(
+        uint256 tokenId
+    ) external view validTokenId(tokenId) returns (address) {
+        return _tokenApprovals[tokenId];
     }
 
     /**
@@ -98,13 +82,7 @@ contract NFTCollection {
         return _tokenURIs[tokenId];
     }
 
-    /**
-     * @notice Gives permission to `to` to transfer `tokenId` token.
-     * @dev Approving the zero address clears previous approvals.
-     * Only the token owner can call this function.
-     * @param to The address to approve (use address(0) to revoke)
-     * @param tokenId The token ID to approve
-     */
+    /// @inheritdoc IERC721
     function approve(
         address to,
         uint256 tokenId
@@ -122,5 +100,34 @@ contract NFTCollection {
 
         // Emit the standard event
         emit Approval(owner, to, tokenId);
+    }
+
+    /// @inheritdoc IERC721
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external validTokenId(tokenId) {
+        address owner = _owners[tokenId];
+
+        // Verify that the 'from' address is the actual current owner
+        if (owner != from) {
+            revert NotTokenOwner(from, tokenId);
+        }
+
+        // Verify that the caller is either the owner or the approved marketplace
+        address approved = _tokenApprovals[tokenId];
+        if (msg.sender != owner && msg.sender != approved) {
+            revert NotTokenOwner(msg.sender, tokenId); // Usiamo lo stesso errore per semplicità
+        }
+
+        // Clear previous approvals to prevent unauthorized transfers after the sale
+        _tokenApprovals[tokenId] = address(0);
+
+        // Reassign ownership to the buyer
+        _owners[tokenId] = to;
+
+        // Emit the standard ERC-721 Transfer event
+        emit Transfer(from, to, tokenId);
     }
 }
