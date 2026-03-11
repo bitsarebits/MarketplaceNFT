@@ -3,20 +3,19 @@ pragma solidity ^0.8.28;
 
 import "../interfaces/IERC721.sol";
 import "../errors/SharedErrors.sol";
+import "./SecurityBase.sol";
+import "./ReentrancyGuard.sol";
 
 /**
  * @title Core NFT Marketplace
  * @dev Handles the listing, buying, and canceling of ERC-721 token sales.
  */
-contract Marketplace {
+contract Marketplace is SecurityBase, ReentrancyGuard {
     /// @notice The address that receives marketplace fees (Admin)
     address payable public immutable _feeAccount;
 
     /// @notice The fee percentage taken by the marketplace on each sale
     uint256 public _feePercent;
-
-    /// @dev Mutex lock to prevent reentrancy attacks
-    bool private _locked;
 
     /**
      * @dev Represents a single NFT listed for sale on the marketplace
@@ -88,27 +87,11 @@ contract Marketplace {
     /// @notice Custom error thrown when the msg.value does not exactly match the item price
     error PriceNotMet(uint256 sent, uint256 required);
 
-    /// @notice Custom error thrown when a reentrant call is detected by the mutex
-    error ReentrancyDetected();
-
     /// @notice Custom error thrown when an unauthorized user attempts to withdraw fees
     error OnlyFeeAccount();
 
     /// @notice Custom error thrown when someone other than the seller tries to modify a listing
     error NotSeller();
-
-    /**
-     * @dev Modifier to prevent reentrancy attacks.
-     * Acts as a mutex lock during external calls.
-     */
-    modifier nonReentrant() {
-        if (_locked) {
-            revert ReentrancyDetected();
-        }
-        _locked = true;
-        _;
-        _locked = false;
-    }
 
     /**
      * @notice Initializes the marketplace contract
@@ -130,7 +113,7 @@ contract Marketplace {
         address nftCollection,
         uint256 tokenId,
         uint256 price
-    ) external {
+    ) external nonZeroAddress(nftCollection) {
         // Prevent listing for free
         if (!(price > 0)) {
             revert PriceMustBeAboveZero();
@@ -141,8 +124,15 @@ contract Marketplace {
             revert NotTokenOwner(msg.sender, tokenId);
         }
 
-        // Ensure the marketplace is approved to move the token on behalf of the owner
-        if (IERC721(nftCollection).getApproved(tokenId) != address(this)) {
+        // Ensure the marketplace is approved to move the token (either specifically or globally)
+        bool isApproved = IERC721(nftCollection).getApproved(tokenId) ==
+            address(this);
+        bool isOperator = IERC721(nftCollection).isApprovedForAll(
+            msg.sender,
+            address(this)
+        );
+
+        if (!isApproved && !isOperator) {
             revert MarketplaceNotApproved(tokenId);
         }
 
@@ -165,7 +155,7 @@ contract Marketplace {
     function buyToken(
         address nftCollection,
         uint256 tokenId
-    ) external payable nonReentrant {
+    ) external payable nonReentrant nonZeroAddress(nftCollection) {
         // CHECKS
         MarketItem memory item = _marketItems[nftCollection][tokenId];
 
@@ -209,7 +199,10 @@ contract Marketplace {
      * @param nftCollection The address of the NFT contract
      * @param tokenId The ID of the token listing to cancel
      */
-    function cancelListing(address nftCollection, uint256 tokenId) external {
+    function cancelListing(
+        address nftCollection,
+        uint256 tokenId
+    ) external nonZeroAddress(nftCollection) {
         // Load the item into memory once to save gas on multiple reads
         MarketItem memory item = _marketItems[nftCollection][tokenId];
 
