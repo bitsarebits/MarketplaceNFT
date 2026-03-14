@@ -31,6 +31,12 @@ contract Collection is IERC721, SecurityBase {
     /// @notice Custom error thrown when querying a non-existent token
     error InvalidTokenId(uint256 tokenId);
 
+    /// @notice Custom error thrown when trying to approve an operator to themselves
+    error CannotApproveSelf();
+
+    /// @notice Custom error thrown when the owner approves themselves
+    error ApprovalToCurrentOwner();
+
     /**
      * @dev Modifier to check if a token ID exists.
      * Reverts with InvalidTokenId if the token is 0 or exceeds the minted supply.
@@ -54,6 +60,33 @@ contract Collection is IERC721, SecurityBase {
         uint256 tokenId
     ) external view override validTokenId(tokenId) returns (address) {
         return _tokenApprovals[tokenId];
+    }
+
+    /**
+     * @notice Returns the metadata URI for a given token
+     * @param tokenId The ID of the token to query
+     * @return The string URI pointing to the token's JSON metadata
+     */
+    function tokenURI(
+        uint256 tokenId
+    ) external view validTokenId(tokenId) returns (string memory) {
+        return _tokenURIs[tokenId];
+    }
+
+    /// @inheritdoc IERC721
+    function balanceOf(
+        address owner
+    ) external view override nonZeroAddress(owner) returns (uint256) {
+        return _balances[owner];
+    }
+
+    /// @inheritdoc IERC721
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure override returns (bool) {
+        return
+            interfaceId == 0x80ac58cd || // ERC721 interface ID
+            interfaceId == 0x01ffc9a7; // ERC165 interface ID
     }
 
     /**
@@ -81,17 +114,6 @@ contract Collection is IERC721, SecurityBase {
         return id;
     }
 
-    /**
-     * @notice Returns the metadata URI for a given token
-     * @param tokenId The ID of the token to query
-     * @return The string URI pointing to the token's JSON metadata
-     */
-    function tokenURI(
-        uint256 tokenId
-    ) external view validTokenId(tokenId) returns (string memory) {
-        return _tokenURIs[tokenId];
-    }
-
     /// @inheritdoc IERC721
     function approve(
         address to,
@@ -100,8 +122,13 @@ contract Collection is IERC721, SecurityBase {
         // Cache the owner address in memory to save gas reading from storage twice
         address owner = _owners[tokenId];
 
-        // Check if the caller is the actual owner
-        if (owner != msg.sender) {
+        // Prevent auto-approval
+        if (to == owner) {
+            revert ApprovalToCurrentOwner();
+        }
+
+        // Check if the caller is the actual owner or an approved operator
+        if (owner != msg.sender && !isApprovedForAll(owner, msg.sender)) {
             revert NotTokenOwner(msg.sender, tokenId);
         }
 
@@ -154,6 +181,11 @@ contract Collection is IERC721, SecurityBase {
         address operator,
         bool _approved
     ) external override nonZeroAddress(operator) {
+        // Check for self operator
+        if (operator == msg.sender) {
+            revert CannotApproveSelf();
+        }
+
         _operatorApprovals[msg.sender][operator] = _approved;
         emit ApprovalForAll(msg.sender, operator, _approved);
     }
@@ -164,25 +196,6 @@ contract Collection is IERC721, SecurityBase {
         address operator
     ) public view override returns (bool) {
         return _operatorApprovals[owner][operator];
-    }
-
-    /// @inheritdoc IERC721
-    function balanceOf(
-        address owner
-    ) external view override nonZeroAddress(owner) returns (uint256) {
-        if (owner == address(0)) {
-            revert ZeroAddressNotValid();
-        }
-        return _balances[owner];
-    }
-
-    /// @inheritdoc IERC721
-    function supportsInterface(
-        bytes4 interfaceId
-    ) external pure override returns (bool) {
-        return
-            interfaceId == 0x80ac58cd || // ERC721 interface ID
-            interfaceId == 0x01ffc9a7; // ERC165 interface ID
     }
 
     /**

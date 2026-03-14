@@ -93,12 +93,23 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
     /// @notice Custom error thrown when someone other than the seller tries to modify a listing
     error NotSeller();
 
+    /// @notice Custom error thrown when the initial fee percentage exceeds the maximum allowed
+    error FeeTooHigh();
+
+    /// @notice Custom error thrown when trying to interact with a listing where the seller no longer owns the NFT
+    error SellerNoLongerOwner(uint256 tokenId);
+
     /**
      * @notice Initializes the marketplace contract
      * @dev The deployer of the contract becomes the fee recipient
      * @param feePercent The percentage taken by the marketplace on each sale
      */
     constructor(uint256 feePercent) {
+        // Fee limit
+        if (feePercent > 20) {
+            revert FeeTooHigh();
+        }
+
         _feeAccount = payable(msg.sender);
         _feePercent = feePercent;
     }
@@ -169,6 +180,11 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
             revert PriceNotMet(msg.value, item.price);
         }
 
+        // Ensure the seller still owns the token
+        if (IERC721(nftCollection).ownerOf(tokenId) != item.seller) {
+            revert SellerNoLongerOwner(tokenId);
+        }
+
         // EFFECTS
         // Mark the item as sold/inactive first to prevent reentrancy loops
         _marketItems[nftCollection][tokenId].isActive = false;
@@ -211,8 +227,12 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
             revert ItemNotAvailable(tokenId);
         }
 
-        // Ensure that the person trying to cancel is the actual seller who listed it
-        if (item.seller != msg.sender) {
+        // Read the actual owner
+        address currentOwner = IERC721(nftCollection).ownerOf(tokenId);
+
+        // Only the seller can cancel the listing.
+        // Cancel allowed also if the actual owner is not the seller (Zombie Listings)
+        if (msg.sender != item.seller && currentOwner == item.seller) {
             revert NotSeller();
         }
 
