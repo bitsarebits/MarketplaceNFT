@@ -517,7 +517,7 @@ contract CollectionTest is Test {
         // Setup the token's initial data
         string memory uri = "../metadata/token_1.json";
 
-        // Mint a token as Alice and approve a fale operator (0x99)
+        // Mint a token as Alice and approve a fake operator (0x99)
         vm.startPrank(alice);
         uint256 tokenId = collection.mint(uri);
         collection.approve(address(99), tokenId);
