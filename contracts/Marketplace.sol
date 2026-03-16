@@ -79,13 +79,18 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
     error PriceMustBeAboveZero();
 
     /// @notice Custom error thrown when the marketplace lacks approval to transfer the token
-    error MarketplaceNotApproved(uint256 tokenId);
+    error MarketplaceNotApproved(address collection, uint256 tokenId);
 
     /// @notice Custom error thrown when trying to buy an unlisted or already sold item
-    error ItemNotAvailable(uint256 tokenId);
+    error ItemNotAvailable(address collection, uint256 tokenId);
 
     /// @notice Custom error thrown when the msg.value does not exactly match the item price
-    error PriceNotMet(uint256 sent, uint256 required);
+    error PriceNotMet(
+        address collection,
+        uint256 tokenId,
+        uint256 sent,
+        uint256 required
+    );
 
     /// @notice Custom error thrown when an unauthorized user attempts to withdraw fees
     error OnlyFeeAccount();
@@ -97,7 +102,7 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
     error FeeTooHigh();
 
     /// @notice Custom error thrown when trying to interact with a listing where the seller no longer owns the NFT
-    error SellerNoLongerOwner(uint256 tokenId);
+    error SellerNoLongerOwner(address collection, uint256 tokenId);
 
     /**
      * @notice Initializes the marketplace contract
@@ -132,7 +137,7 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
 
         // Ensure the caller actually owns the token they are trying to sell
         if (IERC721(nftCollection).ownerOf(tokenId) != msg.sender) {
-            revert NotTokenOwner(msg.sender, tokenId);
+            revert NotTokenOwner(msg.sender, nftCollection, tokenId);
         }
 
         // Ensure the marketplace is approved to move the token (either specifically or globally)
@@ -144,7 +149,7 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
         );
 
         if (!isApproved && !isOperator) {
-            revert MarketplaceNotApproved(tokenId);
+            revert MarketplaceNotApproved(nftCollection, tokenId);
         }
 
         // Create the listing in storage
@@ -172,17 +177,17 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
 
         // Ensure the item is actually for sale
         if (!item.isActive) {
-            revert ItemNotAvailable(tokenId);
+            revert ItemNotAvailable(nftCollection, tokenId);
         }
 
         // Ensure the buyer sent the exact correct amount of wei
         if (msg.value != item.price) {
-            revert PriceNotMet(msg.value, item.price);
+            revert PriceNotMet(nftCollection, tokenId, msg.value, item.price);
         }
 
         // Ensure the seller still owns the token
         if (IERC721(nftCollection).ownerOf(tokenId) != item.seller) {
-            revert SellerNoLongerOwner(tokenId);
+            revert SellerNoLongerOwner(nftCollection, tokenId);
         }
 
         // EFFECTS
@@ -224,7 +229,7 @@ contract Marketplace is SecurityBase, ReentrancyGuard {
 
         // Ensure the item is currently active on the market
         if (!item.isActive) {
-            revert ItemNotAvailable(tokenId);
+            revert ItemNotAvailable(nftCollection, tokenId);
         }
 
         // Read the actual owner

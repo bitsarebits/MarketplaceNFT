@@ -7,9 +7,9 @@ const { viem, networkHelpers } = await network.connect();
 const URI1 = "../metadata/token_1.json";
 const URI2 = "../metadata/token_2.json";
 
-describe("MarketplaceFlows", function () {
+describe("Marketplace", function () {
     // Fixture setup
-    async function deployMarketplaceFlowsFixture() {
+    async function deployMarketplaceSetupFixture() {
         // Get the public client to read blockchain data
         const publicClient = await viem.getPublicClient();
 
@@ -50,7 +50,7 @@ describe("MarketplaceFlows", function () {
             bob,
             charlie,
             FEE_PERCENT,
-        } = await networkHelpers.loadFixture(deployMarketplaceFlowsFixture);
+        } = await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
 
         const tokenId = 1n;
         const price = parseEther("1");
@@ -82,6 +82,19 @@ describe("MarketplaceFlows", function () {
             tokenId,
             price,
         };
+    }
+
+    async function deployAndCreateZombieFixture() {
+        const setup = await networkHelpers.loadFixture(deployAndListFixture);
+
+        const { collection, alice, charlie, tokenId } = setup;
+
+        await collection.write.transferFrom(
+            [alice.account.address, charlie.account.address, tokenId],
+            { account: alice.account },
+        );
+
+        return setup;
     }
 
     async function deployAndSellFixture() {
@@ -124,7 +137,7 @@ describe("MarketplaceFlows", function () {
 
     it("Should allow Alice to mint an NFT, approve the marketplace, and list it", async function () {
         const { collection, marketplace, alice } =
-            await networkHelpers.loadFixture(deployMarketplaceFlowsFixture);
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
 
         // First token of the collection minted (ID: 1)
         const tokenId = 1n;
@@ -244,7 +257,7 @@ describe("MarketplaceFlows", function () {
 
     it("Should allow Alice to create multiple NFTs, approve the Marketplace for all her tokens and list them", async function () {
         const { marketplace, collection, alice } =
-            await networkHelpers.loadFixture(deployMarketplaceFlowsFixture);
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
 
         const firstTokenId = 1n;
         const secondTokenId = 2n;
@@ -319,21 +332,7 @@ describe("MarketplaceFlows", function () {
 
     it("Should allow any user to cancel a zombie listing after a private transfer", async function () {
         const { marketplace, collection, alice, bob, charlie, tokenId } =
-            await networkHelpers.loadFixture(deployAndListFixture);
-
-        await viem.assertions.emitWithArgs(
-            collection.write.transferFrom(
-                [alice.account.address, charlie.account.address, tokenId],
-                { account: alice.account },
-            ),
-            collection,
-            "Transfer",
-            [
-                getAddress(alice.account.address),
-                getAddress(charlie.account.address),
-                tokenId,
-            ],
-        );
+            await networkHelpers.loadFixture(deployAndCreateZombieFixture);
 
         await viem.assertions.emitWithArgs(
             marketplace.write.cancelListing([collection.address, tokenId], {
@@ -359,6 +358,193 @@ describe("MarketplaceFlows", function () {
                 { address: marketplace.address, amount: -feeAmount },
                 { address: admin.account.address, amount: feeAmount },
             ],
+        );
+    });
+
+    it("Should revert with FeeTooHigh if the constructor fee exceeds the maximum allowed", async function () {
+        const { marketplace, admin } = await networkHelpers.loadFixture(
+            deployMarketplaceSetupFixture,
+        );
+
+        const invalidFeePercent = 80n;
+
+        const failedDeployPromise = viem.deployContract(
+            "Marketplace",
+            [invalidFeePercent],
+            { client: { wallet: admin } },
+        );
+
+        await viem.assertions.revertWithCustomError(
+            failedDeployPromise,
+            marketplace, // use the valid marketplace instance to get the custom error
+            "FeeTooHigh",
+        );
+    });
+
+    it("Should revert if a user tries to list an NFT they do not own", async function () {
+        const { marketplace, collection, alice, bob } =
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
+
+        const tokenId = 1n;
+        const price = parseEther("1");
+
+        // Alice mints the token
+        await collection.write.mint([URI1], {
+            account: alice.account,
+        });
+
+        // Bob tries to list Alice's token
+        await viem.assertions.revertWithCustomErrorWithArgs(
+            marketplace.write.listToken([collection.address, tokenId, price], {
+                account: bob.account,
+            }),
+            marketplace,
+            "NotTokenOwner",
+            [
+                getAddress(bob.account.address),
+                getAddress(collection.address),
+                tokenId,
+            ],
+        );
+    });
+
+    it("Should revert if a user tries to list an NFT without approving the marketplace", async function () {
+        const { marketplace, collection, alice } =
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
+
+        const tokenId = 1n;
+        const price = parseEther("1");
+
+        await collection.write.mint([URI1], {
+            account: alice.account,
+        });
+
+        await viem.assertions.revertWithCustomErrorWithArgs(
+            marketplace.write.listToken([collection.address, tokenId, price], {
+                account: alice.account,
+            }),
+            marketplace,
+            "MarketplaceNotApproved",
+            [getAddress(collection.address), tokenId],
+        );
+    });
+
+    it("Should revert if a user tries to list an NFT with a price of zero", async function () {
+        const { marketplace, collection, alice } =
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
+
+        const tokenId = 1n;
+        const zeroPrice = 0n;
+
+        await collection.write.mint([URI1], {
+            account: alice.account,
+        });
+
+        await collection.write.approve([marketplace.address, tokenId], {
+            account: alice.account,
+        });
+
+        await viem.assertions.revertWithCustomError(
+            marketplace.write.listToken(
+                [collection.address, tokenId, zeroPrice],
+                {
+                    account: alice.account,
+                },
+            ),
+            marketplace,
+            "PriceMustBeAboveZero",
+        );
+    });
+
+    it("Should revert if a user tries to buy an unlisted NFT", async function () {
+        const { marketplace, collection, bob } =
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
+
+        const tokenId = 1n; // Never listed token
+        const price = parseEther("1");
+
+        await viem.assertions.revertWithCustomErrorWithArgs(
+            marketplace.write.buyToken([collection.address, tokenId], {
+                account: bob.account,
+                value: price,
+            }),
+            marketplace,
+            "ItemNotAvailable",
+            [getAddress(collection.address), tokenId],
+        );
+    });
+
+    it("Should revert if a user tries to buy a listed NFT with insufficient funds", async function () {
+        const { marketplace, collection, bob, tokenId, price } =
+            await networkHelpers.loadFixture(deployAndListFixture);
+
+        const insufficientFunds = parseEther("0.5");
+
+        await viem.assertions.revertWithCustomErrorWithArgs(
+            marketplace.write.buyToken([collection.address, tokenId], {
+                account: bob.account,
+                value: insufficientFunds,
+            }),
+            marketplace,
+            "PriceNotMet",
+            [getAddress(collection.address), tokenId, insufficientFunds, price],
+        );
+    });
+
+    it("Should revert with SellerNoLongerOwner if a user tries to buy a zombie listing", async function () {
+        const { marketplace, collection, bob, tokenId, price } =
+            await networkHelpers.loadFixture(deployAndCreateZombieFixture);
+
+        await viem.assertions.revertWithCustomErrorWithArgs(
+            marketplace.write.buyToken([collection.address, tokenId], {
+                account: bob.account,
+                value: price,
+            }),
+            marketplace,
+            "SellerNoLongerOwner",
+            [getAddress(collection.address), tokenId],
+        );
+    });
+
+    it("Should revert if a user tries to cancel an unlisted NFT", async function () {
+        const { marketplace, collection, alice } =
+            await networkHelpers.loadFixture(deployMarketplaceSetupFixture);
+
+        const tokenId = 1n; // Not listed token
+
+        await viem.assertions.revertWithCustomErrorWithArgs(
+            marketplace.write.cancelListing([collection.address, tokenId], {
+                account: alice.account,
+            }),
+            marketplace,
+            "ItemNotAvailable",
+            [getAddress(collection.address), tokenId],
+        );
+    });
+
+    it("Should revert if an unauthorized user tries to cancel a listing", async function () {
+        const { marketplace, collection, charlie, tokenId } =
+            await networkHelpers.loadFixture(deployAndListFixture);
+
+        await viem.assertions.revertWithCustomError(
+            marketplace.write.cancelListing([collection.address, tokenId], {
+                account: charlie.account,
+            }),
+            marketplace,
+            "NotSeller",
+        );
+    });
+
+    it("Should revert if a non-admin tries to withdraw fees", async function () {
+        const { marketplace, bob } =
+            await networkHelpers.loadFixture(deployAndSellFixture);
+
+        await viem.assertions.revertWithCustomError(
+            marketplace.write.withdrawFees({
+                account: bob.account,
+            }),
+            marketplace,
+            "OnlyFeeAccount",
         );
     });
 });

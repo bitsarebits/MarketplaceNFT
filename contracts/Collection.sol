@@ -129,7 +129,7 @@ contract Collection is IERC721, SecurityBase {
 
         // Check if the caller is the actual owner or an approved operator
         if (owner != msg.sender && !isApprovedForAll(owner, msg.sender)) {
-            revert NotTokenOwner(msg.sender, tokenId);
+            revert NotTokenOwner(msg.sender, address(this), tokenId);
         }
 
         // Assign the new approved address
@@ -149,7 +149,7 @@ contract Collection is IERC721, SecurityBase {
 
         // Verify that the 'from' address is the actual current owner
         if (owner != from) {
-            revert NotTokenOwner(from, tokenId);
+            revert NotTokenOwner(from, address(this), tokenId);
         }
 
         // Verify that the caller is either the owner or the approved marketplace
@@ -159,7 +159,7 @@ contract Collection is IERC721, SecurityBase {
             msg.sender != approved &&
             !isApprovedForAll(owner, msg.sender)
         ) {
-            revert NotTokenOwner(msg.sender, tokenId); // Usiamo lo stesso errore per semplicità
+            revert NotTokenOwner(msg.sender, address(this), tokenId); // Usiamo lo stesso errore per semplicità
         }
 
         // Clear previous approvals to prevent unauthorized transfers after the sale

@@ -180,7 +180,12 @@ contract MarketplaceTest is Test {
         // Bob tries to list Alice's token
         vm.prank(bob);
         vm.expectRevert(
-            abi.encodeWithSelector(NotTokenOwner.selector, bob, tokenId)
+            abi.encodeWithSelector(
+                NotTokenOwner.selector,
+                bob,
+                address(collection),
+                tokenId
+            )
         );
         marketplace.listToken(address(collection), tokenId, LISTING_PRICE);
     }
@@ -200,6 +205,7 @@ contract MarketplaceTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Marketplace.MarketplaceNotApproved.selector,
+                address(collection),
                 tokenId
             )
         );
@@ -301,6 +307,7 @@ contract MarketplaceTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Marketplace.ItemNotAvailable.selector,
+                address(collection),
                 nonExistentTokenId
             )
         );
@@ -328,6 +335,8 @@ contract MarketplaceTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Marketplace.PriceNotMet.selector,
+                address(collection),
+                tokenId,
                 wrongPrice,
                 LISTING_PRICE
             )
@@ -354,6 +363,7 @@ contract MarketplaceTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Marketplace.SellerNoLongerOwner.selector,
+                address(collection),
                 tokenId
             )
         );
@@ -451,6 +461,7 @@ contract MarketplaceTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Marketplace.ItemNotAvailable.selector,
+                address(collection),
                 tokenId
             )
         );

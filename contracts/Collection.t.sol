@@ -467,7 +467,12 @@ contract CollectionTest is Test {
 
         // Expect the revert with custom error NotTokenOwner
         vm.expectRevert(
-            abi.encodeWithSelector(NotTokenOwner.selector, bob, tokenId)
+            abi.encodeWithSelector(
+                NotTokenOwner.selector,
+                bob,
+                address(collection),
+                tokenId
+            )
         );
 
         // Try to approve Charlie for Alice's token as Bob
@@ -662,7 +667,12 @@ contract CollectionTest is Test {
 
         // Expect the revert with custom error NotTokenOwner
         vm.expectRevert(
-            abi.encodeWithSelector(NotTokenOwner.selector, bob, tokenId)
+            abi.encodeWithSelector(
+                NotTokenOwner.selector,
+                bob,
+                address(collection),
+                tokenId
+            )
         );
 
         // Try to transfer Alice's token as Bob
@@ -683,7 +693,12 @@ contract CollectionTest is Test {
 
         // Expect the revert with the custom error NotTokenOwner
         vm.expectRevert(
-            abi.encodeWithSelector(NotTokenOwner.selector, bob, tokenId)
+            abi.encodeWithSelector(
+                NotTokenOwner.selector,
+                bob,
+                address(collection),
+                tokenId
+            )
         );
 
         // Alice transfers her token but declaring it's Bob's token
