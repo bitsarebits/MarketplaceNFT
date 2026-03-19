@@ -24,5 +24,8 @@
 .env
 *.env
 
+# NFT metadata
+metadata/
+
 # developer notes
 developer_notes.txt
