@@ -69,10 +69,8 @@ async function main() {
         console.log(`[USER]  ${sessionName} (${account.address})`);
         console.log("=========================================");
         console.log("\-----------------------------------------");
-        console.log(`[STATE] Active Collection: ${activeCollection || "None"}`);
-        console.log(
-            `[STATE] Active Marketplace: ${activeMarketplace || "None"}`,
-        );
+        console.log(`Active Collection: ${activeCollection || "None"}`);
+        console.log(`Active Marketplace: ${activeMarketplace || "None"}`);
         console.log("-----------------------------------------");
         console.log("--- SETUP ---");
         console.log("1. Connect to existing contracts");
@@ -80,20 +78,21 @@ async function main() {
         console.log("3. Deploy NEW Marketplace");
         console.log("\n--- COLLECTION ACTIONS ---");
         console.log("4. Mint NFT");
+        console.log("5. View My NFTs (Inventory)");
         console.log(
-            "5. Approve Marketplace for ALL tokens (setApprovalForAll)",
+            "6. Approve Marketplace for ALL tokens (setApprovalForAll)",
         );
-        console.log("6. Gift Token [RAW] (Leaves Zombie Listing)");
-        console.log("7. Gift Token [SAFE] (Cancels listing before transfer)");
+        console.log("7. Gift Token [RAW] (Leaves Zombie Listing)");
+        console.log("8. Gift Token [SAFE] (Cancels listing before transfer)");
         console.log("\n--- MARKETPLACE ACTIONS ---");
-        console.log("8. List NFT");
-        console.log("9. Buy NFT");
-        console.log("10. View Market Listings");
-        console.log("11. Cancel Listing");
+        console.log("9. List NFT");
+        console.log("10. Buy NFT");
+        console.log("11. View Market Listings");
+        console.log("12. Cancel Listing");
         console.log("\n--- ADMIN ---");
-        console.log("12. Withdraw Fees");
+        console.log("13. Withdraw Fees");
         console.log("\n--- UTILS ---");
-        console.log("13. View Account Balances");
+        console.log("14. View Account Balances");
         console.log("0. Exit");
 
         const choice = await rl.question("\n> Choose an action: ");
@@ -265,6 +264,130 @@ async function main() {
                 }
                 break;
             case "5":
+                if (!activeCollection) {
+                    console.error("Error: Connect to a Collection first.");
+                    break;
+                }
+
+                console.log("\n--- MY NFT INVENTORY ---");
+                console.log(
+                    `Scanning blockchain for your tokens in Collection ${activeCollection}...`,
+                );
+
+                try {
+                    // Fetch all Transfer events for this collection
+                    const transferLogs = await publicClient.getLogs({
+                        address: activeCollection,
+                        events: CollectionArtifact.abi.filter(
+                            (item: any) =>
+                                item.type === "event" &&
+                                item.name === "Transfer",
+                        ),
+                        fromBlock: "earliest", // From the first block, works for hardhat but not on real chains
+                    });
+
+                    // Find unique Token IDs that our account has ever interacted with
+                    const candidateTokens = new Set<bigint>();
+                    const myAddress = account.address.toLowerCase();
+
+                    for (const log of transferLogs) {
+                        const event = log as any;
+                        if (event.args && event.args.tokenId !== undefined) {
+                            const fromAddress = event.args.from?.toLowerCase();
+                            const toAddress = event.args.to?.toLowerCase();
+
+                            // If we received it or sent it, add to candidates
+                            if (
+                                fromAddress === myAddress ||
+                                toAddress === myAddress
+                            ) {
+                                candidateTokens.add(BigInt(event.args.tokenId));
+                            }
+                        }
+                    }
+
+                    let ownedCount = 0;
+
+                    // Verify current ownership directly on-chain
+                    for (const tokenId of candidateTokens) {
+                        try {
+                            const currentOwner =
+                                (await publicClient.readContract({
+                                    address: activeCollection,
+                                    abi: CollectionArtifact.abi,
+                                    functionName: "ownerOf",
+                                    args: [tokenId],
+                                })) as string;
+
+                            // If we are still the owner, fetch metadata and print!
+                            if (currentOwner.toLowerCase() === myAddress) {
+                                ownedCount++;
+
+                                let nftName = "Unknown";
+                                let description = "No description available";
+
+                                try {
+                                    // Fetch Metadata URI
+                                    const tokenURI =
+                                        (await publicClient.readContract({
+                                            address: activeCollection,
+                                            abi: CollectionArtifact.abi,
+                                            functionName: "tokenURI",
+                                            args: [tokenId],
+                                        })) as string;
+
+                                    // Parse local JSON mock IPFS
+                                    const cid = tokenURI.replace("ipfs://", "");
+                                    const filePath = path.join(
+                                        process.cwd(),
+                                        "metadata",
+                                        `${cid}.json`,
+                                    );
+                                    const fileContent = await fs.readFile(
+                                        filePath,
+                                        "utf-8",
+                                    );
+                                    const metadata = JSON.parse(fileContent);
+
+                                    nftName = metadata.name || "Unknown";
+                                    description =
+                                        metadata.description ||
+                                        "No description available";
+                                } catch (e) {
+                                    nftName =
+                                        "[Metadata unreadable or missing off-chain]";
+                                }
+
+                                console.log(
+                                    "\n-----------------------------------------",
+                                );
+                                console.log(`Token ID:   ${tokenId}`);
+                                console.log(`Title:      ${nftName}`);
+                                console.log(
+                                    `Description:       ${description}`,
+                                );
+                            }
+                        } catch (e) {
+                            // Ingore if ownerOf reverts
+                        }
+                    }
+
+                    if (ownedCount === 0) {
+                        console.log(
+                            "\nYou don't own any tokens in this collection right now.",
+                        );
+                    } else {
+                        console.log(
+                            "-----------------------------------------",
+                        );
+                        console.log(`Total Owned: ${ownedCount} NFTs`);
+                    }
+                } catch (error) {
+                    console.error("Error: Failed to fetch inventory:");
+                    printCleanError(error);
+                }
+                break;
+            case "6":
                 if (!activeCollection || !activeMarketplace) {
                     console.error(
                         "Error: Connect both Collection and Marketplace first.",
@@ -294,7 +417,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "6":
+            case "7":
                 if (!activeCollection) {
                     console.error("Error: Connect to a Collection first.");
                     break;
@@ -334,7 +457,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "7":
+            case "8":
                 if (!activeCollection || !activeMarketplace) {
                     console.error(
                         "Error: Connect both Collection and Marketplace first.",
@@ -396,7 +519,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "8":
+            case "9":
                 // Ensure both contracts are active
                 if (!activeCollection || !activeMarketplace) {
                     console.error(
@@ -466,7 +589,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "9":
+            case "10":
                 if (!activeMarketplace) {
                     console.error("Error: Connect to a Marketplace first!");
                     break;
@@ -544,7 +667,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "10":
+            case "11":
                 if (!activeMarketplace) {
                     console.error("Error: Connect to a Marketplace first!");
                     break;
@@ -562,7 +685,7 @@ async function main() {
                                 item.type === "event" &&
                                 item.name === "ItemListed",
                         ),
-                        fromBlock: "earliest",
+                        fromBlock: "earliest", // From the first block, works for hardhat but not on real chains
                     });
 
                     // Use a Set to store unique collection-id identifier
@@ -677,7 +800,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "11":
+            case "12":
                 if (!activeMarketplace) {
                     console.error("Error: Connect to a Marketplace first.");
                     break;
@@ -720,7 +843,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "12":
+            case "13":
                 if (!activeMarketplace) {
                     console.error("Error: Connect to a Marketplace first.");
                     break;
@@ -748,7 +871,7 @@ async function main() {
                     printCleanError(error);
                 }
                 break;
-            case "13":
+            case "14":
                 console.log("\n--- VIEW ACCOUNT BALANCES ---");
                 try {
                     console.log("Fetching balances from local blockchain...\n");
