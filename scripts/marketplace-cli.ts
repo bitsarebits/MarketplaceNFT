@@ -552,18 +552,49 @@ async function main() {
                         `\nStep 1/2: Approving Marketplace to handle Token ID ${tokenId}...`,
                     );
 
-                    const approveHash = await walletClient.writeContract({
+                    // Check if the marketplace is already approved
+                    const getApprovedAddress = (await publicClient.readContract(
+                        {
+                            address: activeCollection,
+                            abi: CollectionArtifact.abi,
+                            functionName: "getApproved",
+                            args: [tokenId],
+                        },
+                    )) as string;
+
+                    // Check if the marketplace is approved for all tokens
+                    const isOperator = (await publicClient.readContract({
                         address: activeCollection,
                         abi: CollectionArtifact.abi,
-                        functionName: "approve",
-                        args: [activeMarketplace, tokenId],
-                    });
+                        functionName: "isApprovedForAll",
+                        args: [account.address, activeMarketplace],
+                    })) as boolean;
 
-                    await publicClient.waitForTransactionReceipt({
-                        hash: approveHash,
-                    });
+                    if (isOperator) {
+                        console.log(
+                            "This marketplace was already approve for all the collection's Tokens",
+                        );
+                    } else if (
+                        getApprovedAddress.toLowerCase() ===
+                        activeMarketplace.toLowerCase()
+                    ) {
+                        console.log(
+                            "The marketplace was already approved for this token",
+                        );
+                    } else {
+                        const approveHash = await walletClient.writeContract({
+                            address: activeCollection,
+                            abi: CollectionArtifact.abi,
+                            functionName: "approve",
+                            args: [activeMarketplace, tokenId],
+                        });
 
-                    console.log("Approval successful!");
+                        await publicClient.waitForTransactionReceipt({
+                            hash: approveHash,
+                        });
+
+                        console.log("Approval successful!");
+                    }
 
                     // List the token on the Marketplace
                     console.log(
@@ -673,9 +704,27 @@ async function main() {
                     break;
                 }
 
-                console.log("\n---  MARKETPLACE CATALOG ---");
-                console.log("Scanning blockchain for active listings...");
+                console.log("\n---  MARKETPLACE CATALOG ---\n");
 
+                // Read Marketplace stats
+                const ownerAddress = (await publicClient.readContract({
+                    address: activeMarketplace,
+                    abi: MarketplaceArtifact.abi,
+                    functionName: "_feeAccount",
+                })) as string;
+
+                const balanceInWei = await publicClient.getBalance({
+                    address: activeMarketplace,
+                });
+
+                const balanceInEth = formatEther(balanceInWei);
+
+                console.log("\n=========================================");
+                console.log(`[OWNER]  ${ownerAddress}`);
+                console.log(`[BALANCE]  ${balanceInEth}`);
+                console.log("=========================================");
+
+                console.log("Scanning blockchain for active listings...");
                 try {
                     // Fetch all 'ItemListed' events to find which tokens were ever listed.
                     const logs = await publicClient.getLogs({
