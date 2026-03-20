@@ -5,6 +5,7 @@ import {
     parseEther,
     parseEventLogs,
     formatEther,
+    BaseError,
 } from "viem";
 import { hardhat } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -64,7 +65,10 @@ async function main() {
     // Main loop
     let isRunning = true;
     while (isRunning) {
-        console.log("\n-----------------------------------------");
+        console.log("\n=========================================");
+        console.log(`[USER]  ${sessionName} (${account.address})`);
+        console.log("=========================================");
+        console.log("\-----------------------------------------");
         console.log(`[STATE] Active Collection: ${activeCollection || "None"}`);
         console.log(
             `[STATE] Active Marketplace: ${activeMarketplace || "None"}`,
@@ -88,6 +92,8 @@ async function main() {
         console.log("11. Cancel Listing");
         console.log("\n--- ADMIN ---");
         console.log("12. Withdraw Fees");
+        console.log("\n--- UTILS ---");
+        console.log("13. View Account Balances");
         console.log("0. Exit");
 
         const choice = await rl.question("\n> Choose an action: ");
@@ -255,7 +261,7 @@ async function main() {
                     );
                 } catch (error) {
                     console.error("Minting failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "5":
@@ -285,7 +291,7 @@ async function main() {
                     console.log("Global approval granted.");
                 } catch (error) {
                     console.error("Error: Approval failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "6":
@@ -325,7 +331,7 @@ async function main() {
                     );
                 } catch (error) {
                     console.error("Error: Raw transfer failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "7":
@@ -387,7 +393,7 @@ async function main() {
                     console.log("Token transferred safely.");
                 } catch (error) {
                     console.error("Error: Safe transfer failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "8":
@@ -457,7 +463,7 @@ async function main() {
                     );
                 } catch (error) {
                     console.error("Listing failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "9":
@@ -535,7 +541,7 @@ async function main() {
                     );
                 } catch (error) {
                     console.error("Purchase failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "10":
@@ -668,7 +674,7 @@ async function main() {
                     }
                 } catch (error) {
                     console.error("Failed to fetch marketplace listings:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "11":
@@ -711,7 +717,7 @@ async function main() {
                     console.log("Listing canceled successfully.");
                 } catch (error) {
                     console.error("Error: Cancellation failed:");
-                    console.error(error);
+                    printCleanError(error);
                 }
                 break;
             case "12":
@@ -739,7 +745,42 @@ async function main() {
                     );
                 } catch (error) {
                     console.error("Error: Withdraw failed:");
-                    console.error(error);
+                    printCleanError(error);
+                }
+                break;
+            case "13":
+                console.log("\n--- VIEW ACCOUNT BALANCES ---");
+                try {
+                    console.log("Fetching balances from local blockchain...\n");
+
+                    for (let i = 0; i < 20; i++) {
+                        const privateKey = HARDHAT_PRIVATE_KEYS[
+                            i
+                        ] as `0x${string}`;
+                        const tempAccount = privateKeyToAccount(privateKey);
+
+                        // Fetch the balance in Wei directly from the Hardhat node
+                        const balanceInWei = await publicClient.getBalance({
+                            address: tempAccount.address,
+                        });
+
+                        // Convert to ETH
+                        const balanceInEth = formatEther(balanceInWei);
+
+                        // Highlight the currently active session account
+                        const isActive =
+                            tempAccount.address === account.address;
+                        const prefix = isActive ? "-->" : "   ";
+                        const label = isActive ? "(YOU)  " : `(Account ${i})`;
+
+                        console.log(
+                            `${prefix} ${label} ${tempAccount.address}: ${balanceInEth} ETH`,
+                        );
+                    }
+                    console.log("\nBalances updated successfully.");
+                } catch (error) {
+                    console.error("Error: Failed to fetch balances:");
+                    printCleanError(error);
                 }
                 break;
 
@@ -758,7 +799,25 @@ async function main() {
 // Avvio
 main().catch(console.error);
 
-// Modules
+// Utils
+
+/**
+ * Parses and prints clean, readable errors from viem/contracts
+ * instead of dumping the massive unreadable object trace.
+ */
+function printCleanError(error: unknown) {
+    if (error instanceof BaseError) {
+        // Viem errors
+        console.error(`Error details: ${error.shortMessage}`);
+    } else if (error instanceof Error) {
+        // JavaScript errors
+        console.error(`Error details: ${error.message}`);
+    } else {
+        console.error("Error details: An unknown error occurred.");
+    }
+}
+
+// Helpers
 
 /**
  * Simulates uploading NFT metadata to IPFS by saving a JSON file locally.
