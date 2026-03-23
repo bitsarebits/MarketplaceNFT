@@ -68,7 +68,7 @@ async function main() {
         console.log("\n=========================================");
         console.log(`[USER]  ${sessionName} (${account.address})`);
         console.log("=========================================");
-        console.log("\-----------------------------------------");
+        console.log("-----------------------------------------");
         console.log(`Active Collection: ${activeCollection || "None"}`);
         console.log(`Active Marketplace: ${activeMarketplace || "None"}`);
         console.log("-----------------------------------------");
@@ -264,20 +264,29 @@ async function main() {
                 }
                 break;
             case "5":
-                if (!activeCollection) {
-                    console.error("Error: Connect to a Collection first.");
+                console.log("\n--- MY NFT INVENTORY ---");
+                const invColInput = await rl.question(
+                    `> Enter Collection Address (Press Enter to use active: ${activeCollection || "None"}): `,
+                );
+
+                const inventoryCollection =
+                    invColInput.trim() !== ""
+                        ? (invColInput.trim() as `0x${string}`)
+                        : activeCollection;
+
+                if (!inventoryCollection) {
+                    console.error("Error: Collection address is required.");
                     break;
                 }
 
-                console.log("\n--- MY NFT INVENTORY ---");
                 console.log(
-                    `Scanning blockchain for your tokens in Collection ${activeCollection}...`,
+                    `Scanning blockchain for your tokens in Collection ${inventoryCollection}...`,
                 );
 
                 try {
                     // Fetch all Transfer events for this collection
                     const transferLogs = await publicClient.getLogs({
-                        address: activeCollection,
+                        address: inventoryCollection,
                         events: CollectionArtifact.abi.filter(
                             (item: any) =>
                                 item.type === "event" &&
@@ -313,7 +322,7 @@ async function main() {
                         try {
                             const currentOwner =
                                 (await publicClient.readContract({
-                                    address: activeCollection,
+                                    address: inventoryCollection,
                                     abi: CollectionArtifact.abi,
                                     functionName: "ownerOf",
                                     args: [tokenId],
@@ -330,7 +339,7 @@ async function main() {
                                     // Fetch Metadata URI
                                     const tokenURI =
                                         (await publicClient.readContract({
-                                            address: activeCollection,
+                                            address: inventoryCollection,
                                             abi: CollectionArtifact.abi,
                                             functionName: "tokenURI",
                                             args: [tokenId],
@@ -713,6 +722,12 @@ async function main() {
                     functionName: "_feeAccount",
                 })) as string;
 
+                const marketplaceFeePercent = (await publicClient.readContract({
+                    address: activeMarketplace,
+                    abi: MarketplaceArtifact.abi,
+                    functionName: "_feePercent",
+                })) as bigint;
+
                 const balanceInWei = await publicClient.getBalance({
                     address: activeMarketplace,
                 });
@@ -722,6 +737,7 @@ async function main() {
                 console.log("\n=========================================");
                 console.log(`[OWNER]  ${ownerAddress}`);
                 console.log(`[BALANCE]  ${balanceInEth}`);
+                console.log(`[FEE] ${marketplaceFeePercent}%`);
                 console.log("=========================================");
 
                 console.log("Scanning blockchain for active listings...");
@@ -963,13 +979,26 @@ async function main() {
             default:
                 console.log("\nInvalid option.");
         }
+
+        if (isRunning) {
+            await rl.question("\n[Press Enter to continues...]");
+        }
     }
 
     rl.close();
 }
 
-// Avvio
-main().catch(console.error);
+// Start the script
+main().catch((error) => {
+    // Intercept the Ctrl+C abort error from readline
+    if (error.code === "ABORT_ERR") {
+        console.log("\nExiting CLI...");
+        process.exit(0);
+    } else {
+        // Print actual unexpected errors
+        console.error(error);
+    }
+});
 
 // Utils
 
