@@ -467,7 +467,7 @@ async function main() {
 
                 console.log("\n--- SAFE GIFT TOKEN (Auto-Cancel) ---");
                 const safeGiftToInput = await rl.question(
-                    "> Enter recipient address: ",
+                    "> Transfer to (address): ",
                 );
                 const safeGiftTokenIdInput = await rl.question(
                     "> Enter Token ID to gift: ",
@@ -766,7 +766,7 @@ async function main() {
                             address: activeMarketplace,
                             abi: MarketplaceArtifact.abi,
                             functionName: "_marketItems",
-                            args: [activeCollection, tokenId],
+                            args: [collectionAddress as `0x${string}`, tokenId],
                         })) as [string, bigint, boolean];
 
                         const isActive = itemData[2];

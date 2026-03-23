@@ -13,7 +13,7 @@
         "viem": "^2.47.0"
     },
     "scripts": {
-        "chain": "npx hardhat node",
+        "chain": "npx hardhat run scripts/start-node.ts",
         "cli": "npx hardhat run scripts/marketplace-cli.ts --network localhost"
     }
 }
