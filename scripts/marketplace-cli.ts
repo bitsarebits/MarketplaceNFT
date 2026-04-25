@@ -215,6 +215,7 @@ async function main() {
                     nftName,
                     nftDesc,
                     sessionName,
+                    account.address,
                 );
 
                 // Execute Smart Contract Minting
@@ -795,6 +796,7 @@ async function main() {
 
                             let nftName = "Unknown";
                             let artistName = "Unknown";
+                            let artistAddress = "Unknown";
                             let description = "No description available";
 
                             try {
@@ -834,6 +836,8 @@ async function main() {
                                 artistName = artistAttr
                                     ? artistAttr.value
                                     : "Unknown";
+                                artistAddress =
+                                    metadata.artistAddress || "Unknown";
                             } catch (e) {
                                 nftName =
                                     "[Metadata unreadable or missing off-chain]";
@@ -843,13 +847,14 @@ async function main() {
                             console.log(
                                 "\n-----------------------------------------",
                             );
-                            console.log(`Token ID:   ${tokenId}`);
-                            console.log(`Collection: ${collectionAddress}`);
-                            console.log(`Title:      ${nftName}`);
-                            console.log(`Artist:     ${artistName}`);
-                            console.log(`Desc:       ${description}`);
-                            console.log(`Price:      ${priceInEth} ETH`);
-                            console.log(`Seller:     ${seller}`);
+                            console.log(`Token ID:      ${tokenId}`);
+                            console.log(`Collection:    ${collectionAddress}`);
+                            console.log(`Title:         ${nftName}`);
+                            console.log(`Artist:        ${artistName}`);
+                            console.log(`Artist Wallet: ${artistAddress}`);
+                            console.log(`Desc:          ${description}`);
+                            console.log(`Price:         ${priceInEth} ETH`);
+                            console.log(`Seller:        ${seller}`);
                         }
                     }
 
@@ -1023,14 +1028,17 @@ function printCleanError(error: unknown) {
 /**
  * Simulates uploading NFT metadata to IPFS by saving a JSON file locally.
  * Formatted according to the ERC-721 standard.
- * * @param name The name of the NFT
+ * @param name The name of the NFT
  * @param description The description of the NFT
+ * @param artistName Name of the NFT miner
+ * @param artistAddress Wallet of the miner
  * @returns The simulated IPFS URI (e.g., ipfs://<fake-hash>)
  */
 async function saveMetadata(
     name: string,
     description: string,
     artistName: string,
+    artistAddress: `0x${string}`,
 ): Promise<string> {
     // Define the local directory path
     const metadataDir = path.join(process.cwd(), "metadata");
@@ -1046,6 +1054,7 @@ async function saveMetadata(
     // Create the JSON payload following standard NFT metadata structures
     const metadata = {
         name: name,
+        artistAddress: artistAddress,
         description: description,
         image: `ipfs://${fakeCid}-image.png`, // Mock image link
         attributes: [
