@@ -1,81 +1,89 @@
-# Local NFT Marketplace & Interactive CLI
+# Web3 NFT Ecosystem & Interactive CLI
 
-This repository contains a locally deployable Web3 ecosystem. It is designed to demonstrate how NFTs and blockchain marketplaces function behind the scenes, providing a safe environment for testing and interaction without the need for real funds or prior blockchain experience.
+A locally deployable Web3 ecosystem built to demonstrate secure smart contract architecture, gas optimization, and event-driven off-chain indexing.
 
-## Project Overview
+This project provides a complete environment to simulate a decentralized non-fungible token (NFT) marketplace. Instead of a traditional React frontend, interaction is driven by a custom Command Line Interface (CLI) built with TypeScript and `viem`, allowing developers to test complex trading flows, permissions, and edge cases in a permissionless environment.
 
-The project consists of two main parts:
+## Architecture & Security Features
 
-1. **Smart Contracts**: The core logic deployed on the blockchain.
-2. **Interactive CLI**: A command-line interface that allows you to interact with the contracts easily.
+The core logic is divided into two main smart contracts, built with a strict focus on security vulnerabilities (e.g., Reentrancy, Denial of Service) and EVM memory management.
 
-### The Smart Contracts
+### 1. ERC-721 Collection (`Collection.sol`)
 
-- **Collection (`Collection.sol`)**: This contract follows the ERC-721 standard for NFTs. It allows users to mint (create) new digital items and transfer them. Metadata (like the name and description of the NFT) is simulated locally.
-- **Marketplace (`Marketplace.sol`)**: This is the trading engine. It allows users to list their NFTs for sale, buy NFTs using digital currency (ETH), and cancel active listings. It includes safety mechanisms to handle edge cases, such as "Zombie Listings" (when a token is actively listed but transferred away privately).
+A modular implementation of the ERC-721 standard.
 
-### The Command Line Interface (CLI)
+- **Gas-Optimized Storage:** Token properties (ownership, metadata URIs, approvals) are strictly separated into parallel mappings to minimize costly `SLOAD` operations.
+- **Event-Driven Feedback:** Leverages standard ERC-721 events (`Transfer`, `Approval`, `ApprovalForAll`) to communicate state changes to the client without requiring additional read calls.
+- **Off-Chain IPFS Simulation:** Metadata generation is handled locally by the CLI to simulate distributed file systems without relying on external providers.
 
-Instead of a web frontend, this project uses a text-based menu in your terminal. It acts as a control panel, allowing you to log in as different users, deploy the contracts, and execute trades step-by-step.
+### 2. The Marketplace (`Marketplace.sol`)
 
-## Prerequisites
+A permissionless trading engine capable of handling any standard ERC-721 token.
 
-To run this project, you only need:
+- **Reentrancy Protection:** Secures state-changing functions using the Checks-Effects-Interactions (CEI) pattern and a custom Mutex lock (`nonReentrant` modifier).
+- **Pull over Push (Fees):** Protocol fees are safely isolated using the Withdrawal pattern (`withdrawFees`), preventing DoS attacks related to external calls.
+- **Strict Gas Limits:** Payments to sellers are routed using the `.transfer()` method, strictly limiting forwarded gas to 2300 units to mitigate Griefing and Out-of-Gas attacks.
+- **Decentralized Garbage Collection:** Mitigates "Zombie Listings" (active listings of tokens that were transferred privately). The `cancelListing` function allows _anyone_ to invalidate an order if the seller is no longer the actual owner.
 
-- **Node.js**: JavaScript runtime (version 18 or higher is recommended).
-- **npm**: The Node package manager (this comes automatically with Node.js).
+---
 
-The project works across Linux, macOS, and Windows. You do not need to install Hardhat globally; the project handles all necessary tools locally.
+## Getting Started
 
-## Installation
+### Prerequisites
 
-Install the required dependencies while in the project root folder:
+- **Node.js**: Version 18.x or higher.
+- **npm**: Node package manager.
+
+_Note: Hardhat and Viem are handled locally via project dependencies. No global installations are required._
+
+### Installation
+
+Clone the repository and install the dependencies:
 
 ```bash
 npm install
 ```
 
-This command downloads all the necessary background tools, including Hardhat (to run the local blockchain) and Viem (to interact with it).
+## Running the Simulation
 
-## How to Run the Simulation
+To fully experience the multi-actor environment, you will need to open **two or more terminal windows**.
 
-To interact with the ecosystem, you need to open **two separate terminal windows** at the same time.
+### 1. Start the Local Blockchain (Terminal 1)
 
-### Step 1: Start the Local Blockchain
-
-In your first terminal (ensure you are inside the project folder), start the local Hardhat network:
+Boot up the local Hardhat node:
 
 ```bash
 npm run chain
 ```
 
-This command starts a private, temporary blockchain on your computer. It provides several test accounts loaded with fake ETH. Leave this terminal open and running in the background.
+This initializes a local EVM network with 20 pre-funded test accounts. Leave this process running.
 
-_Note: When you stop this node (by pressing Ctrl+C), the script will automatically clean up any temporary metadata files generated during your session._
+_Graceful Shutdown: Pressing `Ctrl+C` will automatically trigger a cleanup script, deleting all temporary mock IPFS metadata generated during the session._
 
-### Step 2: Start the CLI Client
+### 2. Launch the CLI Client (Terminal 2+)
 
-Open a second terminal window, navigate to the project folder, and launch the interactive menu:
+Open a new terminal window and start the interactive interface:
 
 ```bash
 npm run cli
 ```
 
-## Using the CLI
+You can open multiple terminal windows running the CLI to simulate different actors (Admin, Minter, Seller, Buyer) interacting simultaneously.
 
-Once the CLI starts, you will be prompted to select an account (by typing a number from 0 to 19). You can open additional terminal windows to log in as different users and simulate multi-user interactions.
+## CLI Testing Guide
 
-**Recommended Testing Flow:**
+Upon launching the CLI, select a user account (0-19). Follow this recommended flow to explore the ecosystem:
 
-1. **Deploy Contracts**: Select option `2` to deploy the Collection, then option `3` to deploy the Marketplace. You will be asked to set a custom fee percentage for the marketplace.
-2. **Mint an NFT**: Select option `4` to create a new digital item. You can do this multiple times to build up your inventory.
-3. **Approve the Marketplace (Optional)**: Select option `6` to grant the marketplace global permission to handle all your current and future tokens. This step is entirely optional but recommended because it saves gas in the long run. If you choose to skip it, the marketplace will automatically ask for individual token approval during the listing process.
-4. **List for Sale**: Select option `9` to put your newly minted NFT up for sale. If you skipped step 3, the script will automatically process the required approval before listing the item.
-5. **View the Catalog**: Use option `11` to view all active items currently listed on the marketplace, along with the marketplace's owner address and accumulated fee balance.
-6. **Switch Users & Buy**: Open a new terminal window, log in as a different user, and select option `1` to connect to the existing contract addresses. Then, use option `10` to purchase an NFT from the catalog.
-7. **Test Edge Cases (Zombie Listings)**: As a seller, mint a token, list it for sale, and then use option `7` (Raw Gift) to transfer it directly to another user. Check the catalog to see how the system registers the resulting "Zombie Listing". Try option `8` (Safe Gift) to see the secure alternative. Zombie listings can be deleted by any user, not only the owner of the token for a decentralized cleanup.
-8. **Withdraw Fees**: Log back in as the original marketplace deployer (admin) and use option `13` to securely withdraw the accumulated trading fees to your personal wallet.
+1. **Deploy Contracts (Admin):** Select option `2` to deploy a Collection, then option `3` to deploy the Marketplace. You will set the protocol fee percentage (max 20%).
 
----
+2. **Minting (Minter):** Use option `4` to create a new NFT. The CLI will generate mock metadata and store it locally.
 
-_Disclaimer: Portions of this README documentation and code comments were generated and refined with the assistance of an AI chatbot._
+3. **Smart Approval & Listing (Seller):** Use option `9` to list your NFT. The CLI performs a "smart approval" check: it reads the chain state and only sends an `approve` transaction if the marketplace lacks permissions, saving Gas.
+
+4. **Off-Chain Indexing (Any User):** Select option `11` to view the Marketplace Catalog. The CLI dynamically reconstructs the active market state by parsing historical `ItemListed` events and filtering for active status, bypassing EVM array limitations.
+
+5. **Purchasing (Buyer):** Switch to a different terminal/user, connect to the active contracts (option `1`), and use option `10` to execute an atomic swap (NFT for ETH).
+
+6. **Edge Cases & Zombie Listings:** Mint a new token, list it, and use option `7` (Raw Gift) to bypass the marketplace and transfer it directly. Check the catalog (option `11`) to observe the Zombie Listing, then safely remove it using option `12`.
+
+7. **Admin Withdrawal:** Return to the Admin terminal and use option `13` to pull the accumulated protocol fees. You can monitor all account balances via option `14`.
