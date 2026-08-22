@@ -1,10 +1,21 @@
 # Web3 NFT Ecosystem & Interactive CLI
 
+![Solidity](https://img.shields.io/badge/Solidity-%5E0.8.28-363636.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)
+![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+
 A locally deployable Web3 ecosystem built to demonstrate secure smart contract architecture, gas optimization, and event-driven off-chain indexing.
 
 This project provides a complete environment to simulate a decentralized non-fungible token (NFT) marketplace. Instead of a traditional React frontend, interaction is driven by a custom Command Line Interface (CLI) built with TypeScript and `viem`, allowing developers to test complex trading flows, permissions, and edge cases in a permissionless environment.
 
-## Architecture & Security Features
+## 🛠 Tech Stack
+
+- **Smart Contracts:** Solidity, Hardhat, Foundry (Forge)
+- **Client & Indexing:** TypeScript, Node.js, Viem
+- **Testing:** Node.js Native Test Runner (`node:test`), Foundry (Unit)
+
+## 🏗 Architecture & Security Features
 
 The core logic is divided into two main smart contracts, built with a strict focus on security vulnerabilities (e.g., Reentrancy, Denial of Service) and EVM memory management.
 
@@ -25,7 +36,12 @@ A permissionless trading engine capable of handling any standard ERC-721 token.
 - **Strict Gas Limits:** Payments to sellers are routed using the `.transfer()` method, strictly limiting forwarded gas to 2300 units to mitigate Griefing and Out-of-Gas attacks.
 - **Decentralized Garbage Collection:** Mitigates "Zombie Listings" (active listings of tokens that were transferred privately). The `cancelListing` function allows _anyone_ to invalidate an order if the seller is no longer the actual owner.
 
----
+## Testing & Code Coverage
+
+The smart contracts and client logic are covered by an end-to-end testing suite, achieving 100% code coverage through a combination of unit and integration tests.
+
+- **On-Chain Unit Testing (Foundry/Solidity):** Thorough testing of access controls, state transitions, and custom errors using Forge's cheatcodes (`vm.prank`, `vm.expectRevert`). Verified standalone ReentrancyGuard behavior in an isolated mock environment.
+- **Off-Chain Integration Testing (TypeScript/Viem):** End-to-end testing of market flows, event emission decoding, and precise fund distribution validation using `viem` assertions and incremental fixtures.
 
 ## Getting Started
 
